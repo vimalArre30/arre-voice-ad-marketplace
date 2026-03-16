@@ -1,6 +1,24 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import type { Database } from '@/lib/database.types'
+
+type EpisodeUpdate = Database['public']['Tables']['episodes']['Update']
+
+export async function updateEpisodeMetadata(
+  episodeId: string,
+  fields: Omit<EpisodeUpdate, 'id' | 'audio_url' | 'duration_seconds' | 'transcript' | 'created_at'>
+): Promise<{ error?: string }> {
+  const supabase = createClient()
+
+  const { error } = await supabase
+    .from('episodes')
+    .update({ ...fields, status: 'transcribing' })
+    .eq('id', episodeId)
+
+  if (error) return { error: error.message }
+  return {}
+}
 
 export async function createEpisodeRow(params: {
   audioUrl: string

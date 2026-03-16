@@ -21,8 +21,8 @@ export type Database = {
           gender: 'male' | 'female' | 'mixed'
           audio_url: string | null
           duration_seconds: number | null
-          transcript: TranscriptSegment[] | null
-          status: 'uploaded' | 'transcribing' | 'transcribed' | 'detecting' | 'ready'
+          transcript: Json | null
+          status: 'uploaded' | 'transcribing' | 'transcribed' | 'detecting' | 'ready' | 'error'
           created_at: string
         }
         Insert: {
@@ -36,8 +36,8 @@ export type Database = {
           gender: 'male' | 'female' | 'mixed'
           audio_url?: string | null
           duration_seconds?: number | null
-          transcript?: TranscriptSegment[] | null
-          status?: 'uploaded' | 'transcribing' | 'transcribed' | 'detecting' | 'ready'
+          transcript?: Json | null
+          status?: 'uploaded' | 'transcribing' | 'transcribed' | 'detecting' | 'ready' | 'error'
           created_at?: string
         }
         Update: {
@@ -51,8 +51,8 @@ export type Database = {
           gender?: 'male' | 'female' | 'mixed'
           audio_url?: string | null
           duration_seconds?: number | null
-          transcript?: TranscriptSegment[] | null
-          status?: 'uploaded' | 'transcribing' | 'transcribed' | 'detecting' | 'ready'
+          transcript?: Json | null
+          status?: 'uploaded' | 'transcribing' | 'transcribed' | 'detecting' | 'ready' | 'error'
           created_at?: string
         }
       }
