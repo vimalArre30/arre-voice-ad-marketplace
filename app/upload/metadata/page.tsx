@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { updateEpisodeMetadata } from '@/app/actions/episodes'
 import type { Database } from '@/lib/database.types'
@@ -78,7 +78,7 @@ function FieldError({ msg }: { msg?: string }) {
   return <p className={errorClass}>{msg}</p>
 }
 
-export default function MetadataPage() {
+function MetadataForm() {
   const router = useRouter()
   const params = useSearchParams()
   const episodeId = params.get('episode')
@@ -328,5 +328,17 @@ export default function MetadataPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function MetadataPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#F8F7F4] flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-[#1A6B5A] border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <MetadataForm />
+    </Suspense>
   )
 }
