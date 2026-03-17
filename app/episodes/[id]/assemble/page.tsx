@@ -39,31 +39,6 @@ function fmtDuration(s: number) {
   return s < 60 ? `${s}s` : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
 
-/**
- * Fetches a resource and creates a Blob URL, reporting download progress.
- * Used to load ffmpeg-core.js / .wasm / .worker.js from CDN.
- */
-async function fetchBlobURL(
-  url: string,
-  mimeType: string,
-  onProgress?: (pct: number) => void,
-): Promise<string> {
-  const resp = await fetch(url)
-  if (!resp.ok) throw new Error(`CDN fetch failed (${resp.status}): ${url}`)
-  const total  = Number(resp.headers.get('Content-Length') ?? 0)
-  const reader = resp.body!.getReader()
-  const chunks: Uint8Array[] = []
-  let received = 0
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    chunks.push(value)
-    received += value.length
-    if (total > 0 && onProgress) onProgress(Math.round((received / total) * 100))
-  }
-  return URL.createObjectURL(new Blob(chunks as BlobPart[], { type: mimeType }))
-}
-
 /** Fetches a URL and returns it as a Uint8Array. */
 async function fetchBytes(url: string): Promise<Uint8Array> {
   const resp = await fetch(url)
@@ -107,9 +82,8 @@ export default function AssemblePage() {
 
   // ── Engine ────────────────────────────────────────────────────────────
   const ffmpegRef         = useRef<FFmpeg | null>(null)
-  const [engineStatus, setEngineStatus]     = useState<EngineStatus>('loading')
-  const [engineProgress, setEngineProgress] = useState(0)   // wasm download %
-  const [engineError, setEngineError]       = useState<string | null>(null)
+  const [engineStatus, setEngineStatus] = useState<EngineStatus>('loading')
+  const [engineError, setEngineError]   = useState<string | null>(null)
 
   // ── Data ──────────────────────────────────────────────────────────────
   const [dataStatus, setDataStatus]   = useState<DataStatus>('loading')
@@ -140,11 +114,9 @@ export default function AssemblePage() {
     async function loadEngine() {
       setEngineStatus('loading')
       setEngineError(null)
-      setEngineProgress(0)
 
       const TIMEOUT_MS = 30_000
 
-      // Reject after 30 s so a stalled CDN fetch doesn't hang indefinitely
       const timeout = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('Timed out after 30 s')), TIMEOUT_MS)
       )
@@ -170,22 +142,11 @@ export default function AssemblePage() {
           if (process.env.NODE_ENV === 'development') console.debug('[ffmpeg]', message)
         })
 
-        // Single-threaded core — no SharedArrayBuffer / COOP+COEP headers required
-        const BASE = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm'
-
-        console.log('[ffmpeg] Fetching core JS...')
-        const coreURL = await fetchBlobURL(`${BASE}/ffmpeg-core.js`, 'text/javascript')
-        if (cancelled) return
-
-        console.log('[ffmpeg] Fetching core WASM...')
-        const wasmURL = await fetchBlobURL(`${BASE}/ffmpeg-core.wasm`, 'application/wasm', (pct) => {
-          if (!cancelled) setEngineProgress(pct)
-        })
-        if (cancelled) return
-
-        console.log('[ffmpeg] All files fetched, loading ffmpeg...')
         try {
-          await ffmpeg.load({ coreURL, wasmURL })
+          await ffmpeg.load({
+            coreURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.js',
+            wasmURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.wasm',
+          })
           console.log('[ffmpeg] ffmpeg loaded successfully')
         } catch (err) {
           console.error('[ffmpeg] ffmpeg.load() failed:', err)
@@ -193,7 +154,6 @@ export default function AssemblePage() {
         }
 
         if (cancelled) return
-        console.log('[ffmpeg] ffmpeg loaded successfully')
         ffmpegRef.current = ffmpeg
         setEngineStatus('ready')
       }
@@ -451,11 +411,8 @@ export default function AssemblePage() {
             <div className="mt-3 flex flex-col gap-2">
               <div className="flex items-center gap-2">
                 <Spinner size={4} />
-                <p className="text-sm text-stone-600">
-                  Loading audio engine… {engineProgress > 0 ? `${engineProgress}%` : '(one-time, ~30 MB)'}
-                </p>
+                <p className="text-sm text-stone-600">Loading audio engine…</p>
               </div>
-              {engineProgress > 0 && <ProgressBar value={engineProgress} />}
             </div>
           )}
 
