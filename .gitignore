@@ -16,6 +16,9 @@
 # production
 /build
 
+# ffmpeg core files (copied from node_modules by postinstall)
+/public/ffmpeg/
+
 # misc
 .DS_Store
 *.pem
