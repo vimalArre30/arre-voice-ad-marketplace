@@ -112,11 +112,15 @@ type UploadPhase = 'idle' | 'validating' | 'ready' | 'uploading'
 function SlotCard({
   index,
   slot,
+  playingAdId,
+  onPreview,
   onAssigned,
   onNewAdCreated,
 }: {
   index: number
   slot: SlotData
+  playingAdId: string | null
+  onPreview: (adId: string, url: string) => void
   onAssigned: (momentId: string, adId: string, slotId: string) => void
   onNewAdCreated: (category: string, ad: AdRow) => void
 }) {
@@ -279,32 +283,55 @@ function SlotCard({
           <div className="flex flex-col gap-2">
             {slot.ads.map((ad) => {
               const selected = slot.assignedAdId === ad.id
+              const isPlaying = playingAdId === ad.id
               return (
-                <button
-                  key={ad.id}
-                  onClick={() => !selected && assignAd(ad.id)}
-                  disabled={assigning}
-                  className={[
-                    'w-full text-left rounded-xl border px-3.5 py-3 flex items-center justify-between gap-3 transition-all',
-                    selected
-                      ? 'border-[#1A6B5A] bg-[#f0faf7]'
-                      : 'border-stone-150 hover:border-stone-300 hover:bg-stone-50 border-stone-200',
-                  ].join(' ')}
-                >
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-stone-900 truncate">{ad.title}</p>
-                    <p className="text-[11px] text-stone-400 mt-0.5">{ad.brand_name} · {fmtDuration(ad.duration_seconds)}</p>
-                  </div>
-                  {selected ? (
-                    <svg className="w-4 h-4 text-[#1A6B5A] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                    </svg>
-                  ) : assigning ? (
-                    <Spinner size={4} />
-                  ) : (
-                    <div className="w-4 h-4 rounded-full border-2 border-stone-200 shrink-0" />
-                  )}
-                </button>
+                <div key={ad.id} className="flex items-center gap-2">
+                  <button
+                    onClick={() => !selected && assignAd(ad.id)}
+                    disabled={assigning}
+                    className={[
+                      'flex-1 text-left rounded-xl border px-3.5 py-3 flex items-center justify-between gap-3 transition-all',
+                      selected
+                        ? 'border-[#1A6B5A] bg-[#f0faf7]'
+                        : 'border-stone-150 hover:border-stone-300 hover:bg-stone-50 border-stone-200',
+                    ].join(' ')}
+                  >
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-stone-900 truncate">{ad.title}</p>
+                      <p className="text-[11px] text-stone-400 mt-0.5">{ad.brand_name} · {fmtDuration(ad.duration_seconds)}</p>
+                    </div>
+                    {selected ? (
+                      <svg className="w-4 h-4 text-[#1A6B5A] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                      </svg>
+                    ) : assigning ? (
+                      <Spinner size={4} />
+                    ) : (
+                      <div className="w-4 h-4 rounded-full border-2 border-stone-200 shrink-0" />
+                    )}
+                  </button>
+                  {/* Preview play/pause button */}
+                  <button
+                    onClick={() => onPreview(ad.id, ad.audio_url)}
+                    title={isPlaying ? 'Pause preview' : 'Play preview'}
+                    className={[
+                      'shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-colors',
+                      isPlaying
+                        ? 'bg-[#1A6B5A]/10 text-[#1A6B5A]'
+                        : 'bg-stone-100 text-stone-500 hover:bg-stone-200',
+                    ].join(' ')}
+                  >
+                    {isPlaying ? (
+                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-3.5 h-3.5 translate-x-px" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
               )
             })}
           </div>
@@ -445,6 +472,8 @@ export default function AdsPage() {
   const [slots, setSlots]       = useState<SlotData[]>([])
   const [loading, setLoading]   = useState(true)
   const [pageError, setPageError] = useState<string | null>(null)
+  const [playingAdId, setPlayingAdId] = useState<string | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -520,6 +549,26 @@ export default function AdsPage() {
     )
   }
 
+  function handleAdPreview(adId: string, url: string) {
+    // Stop any currently playing preview
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+      audioRef.current.onended = null
+    }
+    // Toggle off if same ad
+    if (playingAdId === adId) {
+      setPlayingAdId(null)
+      audioRef.current = null
+      return
+    }
+    const audio = new Audio(url)
+    audio.play().catch(() => {})
+    audio.onended = () => { setPlayingAdId(null); audioRef.current = null }
+    audioRef.current = audio
+    setPlayingAdId(adId)
+  }
+
   // ── Derived ───────────────────────────────────────────────────────────────
 
   const assignedCount = slots.filter((s) => s.assignedAdId !== null).length
@@ -529,15 +578,40 @@ export default function AdsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#F8F7F4] flex items-center justify-center">
-        <Spinner size={8} />
+      <div className="min-h-screen bg-[#F8F7F4] px-4 pt-10 pb-24">
+        <div className="w-full max-w-[640px] mx-auto flex flex-col gap-6 animate-pulse">
+          <div>
+            <div className="h-3 bg-stone-200 rounded w-1/4 mb-2" />
+            <div className="h-7 bg-stone-200 rounded-lg w-1/2 mb-1" />
+            <div className="h-4 bg-stone-200 rounded w-2/3" />
+          </div>
+          {[0, 1].map((i) => (
+            <div key={i} className="bg-white rounded-2xl border border-stone-100 p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="h-3 bg-stone-200 rounded w-12" />
+              </div>
+              <div className="h-6 bg-stone-200 rounded w-1/3 mb-3" />
+              <div className="h-3 bg-stone-100 rounded w-full mb-1.5" />
+              <div className="h-3 bg-stone-100 rounded w-4/5 mb-4" />
+              <div className="border-t border-stone-50 pt-4 flex flex-col gap-2">
+                <div className="h-11 bg-stone-100 rounded-xl" />
+                <div className="h-11 bg-stone-100 rounded-xl" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     )
   }
   if (pageError) {
     return (
       <div className="min-h-screen bg-[#F8F7F4] flex items-center justify-center px-4">
-        <p className="text-sm text-red-500">{pageError}</p>
+        <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-5 py-4 max-w-md w-full">
+          <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+          </svg>
+          {pageError}
+        </div>
       </div>
     )
   }
@@ -579,6 +653,8 @@ export default function AdsPage() {
               key={slot.moment.id}
               index={i + 1}
               slot={slot}
+              playingAdId={playingAdId}
+              onPreview={handleAdPreview}
               onAssigned={onAssigned}
               onNewAdCreated={onNewAdCreated}
             />
