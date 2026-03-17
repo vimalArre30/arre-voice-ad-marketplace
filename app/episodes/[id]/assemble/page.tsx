@@ -127,52 +127,73 @@ export default function AssemblePage() {
 
   // ── 1. Load FFmpeg engine ─────────────────────────────────────────────
 
+  const [engineKey, setEngineKey] = useState(0) // increment to retry
+
   useEffect(() => {
     let cancelled = false
 
     async function loadEngine() {
+      setEngineStatus('loading')
+      setEngineError(null)
+      setEngineProgress(0)
+
+      const TIMEOUT_MS = 30_000
+
+      // Reject after 30 s so a stalled CDN fetch doesn't hang indefinitely
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Timed out after 30 s')), TIMEOUT_MS)
+      )
+
       try {
-        const ffmpeg = new FFmpeg()
-
-        // Track ffmpeg encode progress (for assembly phase)
-        ffmpeg.on('progress', ({ progress }) => {
-          setAssembleProgress(Math.round(Math.min(progress, 1) * 100))
-        })
-
-        // Log output for debugging
-        ffmpeg.on('log', ({ message }) => {
-          if (process.env.NODE_ENV === 'development') console.debug('[ffmpeg]', message)
-        })
-
-        // Load core from jsdelivr CDN — wasm is ~30 MB, track its download
-        const BASE = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core-mt@0.12.6/dist/esm'
-
-        const [coreURL, wasmURL, workerURL] = await Promise.all([
-          fetchBlobURL(`${BASE}/ffmpeg-core.js`, 'text/javascript'),
-          fetchBlobURL(`${BASE}/ffmpeg-core.wasm`, 'application/wasm', (pct) => {
-            if (!cancelled) setEngineProgress(pct)
-          }),
-          fetchBlobURL(`${BASE}/ffmpeg-core.worker.js`, 'text/javascript'),
-        ])
-
-        if (cancelled) return
-
-        await ffmpeg.load({ coreURL, wasmURL, workerURL })
-
-        if (cancelled) return
-        ffmpegRef.current = ffmpeg
-        setEngineStatus('ready')
+        await Promise.race([doLoad(), timeout])
       } catch (err) {
         if (!cancelled) {
           setEngineError(err instanceof Error ? err.message : 'Failed to load audio engine')
           setEngineStatus('error')
         }
       }
+
+      async function doLoad() {
+        console.log('[ffmpeg] Starting ffmpeg load...')
+
+        const ffmpeg = new FFmpeg()
+
+        ffmpeg.on('progress', ({ progress }) => {
+          setAssembleProgress(Math.round(Math.min(progress, 1) * 100))
+        })
+        ffmpeg.on('log', ({ message }) => {
+          if (process.env.NODE_ENV === 'development') console.debug('[ffmpeg]', message)
+        })
+
+        const BASE = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core-mt@0.12.6/dist/esm'
+
+        console.log('[ffmpeg] Fetching core JS...')
+        const coreURL = await fetchBlobURL(`${BASE}/ffmpeg-core.js`, 'text/javascript')
+        if (cancelled) return
+
+        console.log('[ffmpeg] Fetching core WASM...')
+        const wasmURL = await fetchBlobURL(`${BASE}/ffmpeg-core.wasm`, 'application/wasm', (pct) => {
+          if (!cancelled) setEngineProgress(pct)
+        })
+        if (cancelled) return
+
+        console.log('[ffmpeg] Fetching worker JS...')
+        const workerURL = await fetchBlobURL(`${BASE}/ffmpeg-core.worker.js`, 'text/javascript')
+        if (cancelled) return
+
+        console.log('[ffmpeg] All files fetched, loading ffmpeg...')
+        await ffmpeg.load({ coreURL, wasmURL, workerURL })
+
+        if (cancelled) return
+        console.log('[ffmpeg] ffmpeg loaded successfully')
+        ffmpegRef.current = ffmpeg
+        setEngineStatus('ready')
+      }
     }
 
     loadEngine()
     return () => { cancelled = true }
-  }, [])
+  }, [engineKey]) // re-runs when retry button is clicked
 
   // ── 2. Fetch data ─────────────────────────────────────────────────────
 
@@ -431,7 +452,23 @@ export default function AssemblePage() {
           )}
 
           {engineStatus === 'error' && (
-            <p className="mt-2 text-sm text-red-500">{engineError ?? 'Failed to load engine.'}</p>
+            <div className="mt-2 flex flex-col gap-2">
+              <p className="text-sm text-red-500">
+                {engineError ?? 'Failed to load audio engine. Try refreshing.'}
+              </p>
+              <button
+                onClick={() => setEngineKey((k) => k + 1)}
+                className="self-start flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-colors"
+                style={{ backgroundColor: '#1A6B5A' }}
+                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#155a4a')}
+                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#1A6B5A')}
+              >
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                </svg>
+                Retry
+              </button>
+            </div>
           )}
 
           {engineStatus === 'ready' && (
