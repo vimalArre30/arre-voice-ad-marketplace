@@ -363,15 +363,39 @@ export default function EpisodeDetailPage() {
   if (pageError) {
     return (
       <div className="min-h-screen bg-[#F8F7F4] flex items-center justify-center px-4">
-        <p className="text-sm text-red-500">{pageError}</p>
+        <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-5 py-4 max-w-md w-full">
+          <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+          </svg>
+          {pageError}
+        </div>
       </div>
     )
   }
 
   if (!episode) {
     return (
-      <div className="min-h-screen bg-[#F8F7F4] flex items-center justify-center px-4">
-        <Spinner size={8} />
+      <div className="min-h-screen bg-[#F8F7F4] px-4 pt-10 pb-20">
+        <div className="w-full max-w-[680px] mx-auto flex flex-col gap-6 animate-pulse">
+          <div>
+            <div className="h-7 bg-stone-200 rounded-lg w-3/4 mb-2" />
+            <div className="h-4 bg-stone-200 rounded w-1/4 mb-3" />
+            <div className="flex gap-2 flex-wrap">
+              {[0,1,2,3,4].map((i) => <div key={i} className="h-6 w-16 bg-stone-200 rounded-full" />)}
+            </div>
+          </div>
+          <div className="bg-white rounded-2xl border border-stone-100 p-6">
+            <div className="h-3 bg-stone-200 rounded w-1/4 mb-5" />
+            <div className="flex flex-col gap-6">
+              {[0,1,2,3].map((i) => (
+                <div key={i} className="flex items-start gap-4">
+                  <div className="w-7 h-7 rounded-full bg-stone-200 shrink-0" />
+                  <div className="h-4 bg-stone-200 rounded w-28 mt-1.5" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     )
   }
@@ -430,8 +454,14 @@ export default function EpisodeDetailPage() {
 
             {moments.length === 0 ? (
               <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-8 text-center">
-                <Spinner size={6} />
-                <p className="text-sm text-stone-400 mt-3">Loading moments…</p>
+                {momentsFetched ? (
+                  <p className="text-sm text-stone-400">No moments were detected in this episode.</p>
+                ) : (
+                  <>
+                    <Spinner size={6} />
+                    <p className="text-sm text-stone-400 mt-3">Loading moments…</p>
+                  </>
+                )}
               </div>
             ) : (
               <div className="flex flex-col gap-3">
