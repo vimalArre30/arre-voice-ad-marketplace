@@ -128,8 +128,13 @@ export default function AssemblePage() {
   // ── 1. Load FFmpeg engine ─────────────────────────────────────────────
 
   const [engineKey, setEngineKey] = useState(0) // increment to retry
+  const attemptedRef = useRef(false)
 
   useEffect(() => {
+    // Prevent re-running on Fast Refresh or StrictMode double-invoke
+    if (attemptedRef.current) return
+    attemptedRef.current = true
+
     let cancelled = false
 
     async function loadEngine() {
@@ -165,7 +170,8 @@ export default function AssemblePage() {
           if (process.env.NODE_ENV === 'development') console.debug('[ffmpeg]', message)
         })
 
-        const BASE = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core-mt@0.12.6/dist/esm'
+        // Single-threaded core — no SharedArrayBuffer / COOP+COEP headers required
+        const BASE = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm'
 
         console.log('[ffmpeg] Fetching core JS...')
         const coreURL = await fetchBlobURL(`${BASE}/ffmpeg-core.js`, 'text/javascript')
@@ -177,12 +183,8 @@ export default function AssemblePage() {
         })
         if (cancelled) return
 
-        console.log('[ffmpeg] Fetching worker JS...')
-        const workerURL = await fetchBlobURL(`${BASE}/ffmpeg-core.worker.js`, 'text/javascript')
-        if (cancelled) return
-
         console.log('[ffmpeg] All files fetched, loading ffmpeg...')
-        await ffmpeg.load({ coreURL, wasmURL, workerURL })
+        await ffmpeg.load({ coreURL, wasmURL })
 
         if (cancelled) return
         console.log('[ffmpeg] ffmpeg loaded successfully')
@@ -457,7 +459,7 @@ export default function AssemblePage() {
                 {engineError ?? 'Failed to load audio engine. Try refreshing.'}
               </p>
               <button
-                onClick={() => setEngineKey((k) => k + 1)}
+                onClick={() => { attemptedRef.current = false; setEngineKey((k) => k + 1) }}
                 className="self-start flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-colors"
                 style={{ backgroundColor: '#1A6B5A' }}
                 onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#155a4a')}
