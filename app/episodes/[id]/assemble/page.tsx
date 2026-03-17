@@ -184,7 +184,13 @@ export default function AssemblePage() {
         if (cancelled) return
 
         console.log('[ffmpeg] All files fetched, loading ffmpeg...')
-        await ffmpeg.load({ coreURL, wasmURL })
+        try {
+          await ffmpeg.load({ coreURL, wasmURL })
+          console.log('[ffmpeg] ffmpeg loaded successfully')
+        } catch (err) {
+          console.error('[ffmpeg] ffmpeg.load() failed:', err)
+          throw err
+        }
 
         if (cancelled) return
         console.log('[ffmpeg] ffmpeg loaded successfully')
