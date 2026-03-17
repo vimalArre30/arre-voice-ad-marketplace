@@ -22,6 +22,13 @@ function formatDuration(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
+function sanitiseFilename(name: string): string {
+  return name
+    .replace(/[｜|[\]{}()!*'";:@&=+$,/?%#]/g, '')
+    .replace(/\s+/g, '_')
+    .trim()
+}
+
 function isAudioFile(file: File): boolean {
   if (ACCEPTED_TYPES.includes(file.type)) return true
   const ext = '.' + file.name.split('.').pop()?.toLowerCase()
@@ -142,7 +149,8 @@ export default function UploadPage() {
     const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
     const uuid = crypto.randomUUID()
-    const storagePath = `episodes/${uuid}/${validated.file.name}`
+    const sanitised = sanitiseFilename(validated.file.name)
+    const storagePath = `episodes/${uuid}/${sanitised}`
     const uploadUrl = `${supabaseUrl}/storage/v1/object/episode-audio/${storagePath}`
 
     try {
