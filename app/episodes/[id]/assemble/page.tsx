@@ -171,7 +171,7 @@ export default function AssemblePage() {
         })
 
         // Single-threaded core — no SharedArrayBuffer / COOP+COEP headers required
-        const BASE = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm'
+        const BASE = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm'
 
         console.log('[ffmpeg] Fetching core JS...')
         const coreURL = await fetchBlobURL(`${BASE}/ffmpeg-core.js`, 'text/javascript')
