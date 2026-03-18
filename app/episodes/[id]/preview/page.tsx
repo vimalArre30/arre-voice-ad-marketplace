@@ -201,40 +201,6 @@ export default function PreviewPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [episodeId])
 
-  // ── 2. Wire audio events ──────────────────────────────────────────────
-
-  useEffect(() => {
-    const audio = audioRef.current
-    if (!audio) return
-
-    const onTime    = () => setCurrentTime(audio.currentTime)
-    const onMeta    = () => setDuration(audio.duration)
-    const onPlay    = () => setIsPlaying(true)
-    const onPause   = () => setIsPlaying(false)
-    const onEnded   = () => setIsPlaying(false)
-    const onWait    = () => setIsBuffering(true)
-    const onCanPlay = () => setIsBuffering(false)
-
-    audio.addEventListener('timeupdate',     onTime)
-    audio.addEventListener('loadedmetadata', onMeta)
-    audio.addEventListener('durationchange', onMeta)
-    audio.addEventListener('play',           onPlay)
-    audio.addEventListener('pause',          onPause)
-    audio.addEventListener('ended',          onEnded)
-    audio.addEventListener('waiting',        onWait)
-    audio.addEventListener('canplay',        onCanPlay)
-
-    return () => {
-      audio.removeEventListener('timeupdate',     onTime)
-      audio.removeEventListener('loadedmetadata', onMeta)
-      audio.removeEventListener('durationchange', onMeta)
-      audio.removeEventListener('play',           onPlay)
-      audio.removeEventListener('pause',          onPause)
-      audio.removeEventListener('ended',          onEnded)
-      audio.removeEventListener('waiting',        onWait)
-      audio.removeEventListener('canplay',        onCanPlay)
-    }
-  }, [episode?.final_audio_url])
 
   // ── Player handlers ───────────────────────────────────────────────────
 
@@ -258,6 +224,18 @@ export default function PreviewPage() {
     const v = parseFloat(e.target.value)
     setVolume(v)
     if (audioRef.current) audioRef.current.volume = v
+  }
+
+  async function handleDownload() {
+    if (!episode?.final_audio_url) return
+    const resp = await fetch(episode.final_audio_url)
+    const blob = await resp.blob()
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href     = url
+    a.download = `${episode.title ?? 'episode'}-assembled.mp3`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   function seekToMarker(actualTime: number) {
@@ -364,7 +342,19 @@ export default function PreviewPage() {
         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm px-5 py-5 flex flex-col gap-4">
 
           {/* Hidden native audio */}
-          <audio ref={audioRef} src={episode.final_audio_url} preload="metadata" />
+          <audio
+            ref={audioRef}
+            src={episode.final_audio_url}
+            preload="metadata"
+            onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+            onDurationChange={(e) => setDuration(e.currentTarget.duration)}
+            onTimeUpdate={(e)     => setCurrentTime(e.currentTarget.currentTime)}
+            onPlay={()            => setIsPlaying(true)}
+            onPause={()           => setIsPlaying(false)}
+            onEnded={()           => setIsPlaying(false)}
+            onWaiting={()         => setIsBuffering(true)}
+            onCanPlay={()         => setIsBuffering(false)}
+          />
 
           <p className="text-xs font-semibold uppercase tracking-widest text-stone-400">Player</p>
 
@@ -452,6 +442,19 @@ export default function PreviewPage() {
               className="absolute left-0 top-0 h-full rounded-full"
               style={{ width: `${progressPct}%`, backgroundColor: '#1A6B5A' }}
             />
+            {/* Ad segments */}
+            {duration > 0 && markers.map((marker) => {
+              const startPct = (marker.actualTimeSeconds / duration) * 100
+              const widthPct = (marker.adDuration / duration) * 100
+              const colour   = CATEGORY_COLOURS[marker.adCategory] ?? DEFAULT_COLOUR
+              return (
+                <div
+                  key={marker.slotId}
+                  className="absolute top-0 h-full pointer-events-none"
+                  style={{ left: `${startPct}%`, width: `${widthPct}%`, backgroundColor: colour, opacity: 0.7 }}
+                />
+              )
+            })}
             {/* Hover thumb */}
             <div
               className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 border-white shadow-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
@@ -605,9 +608,8 @@ export default function PreviewPage() {
 
         {/* ── Download & navigation ── */}
         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm px-5 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <a
-            href={episode.final_audio_url}
-            download={`${episode.title ?? 'episode'}-assembled.mp3`}
+          <button
+            onClick={handleDownload}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors"
             style={{ backgroundColor: '#1A6B5A' }}
             onMouseOver={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = '#155a4a')}
@@ -617,7 +619,7 @@ export default function PreviewPage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
             </svg>
             Download Final Audio
-          </a>
+          </button>
           <Link
             href={`/episodes/${episodeId}`}
             className="text-sm text-stone-500 hover:text-stone-900 transition-colors"

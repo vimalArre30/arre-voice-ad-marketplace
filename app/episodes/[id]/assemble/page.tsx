@@ -106,11 +106,12 @@ export default function AssemblePage() {
   const attemptedRef = useRef(false)
 
   useEffect(() => {
-    // Prevent re-running on Fast Refresh or StrictMode double-invoke
+    // attemptedRef prevents double-execution from Strict Mode's mount→unmount→remount.
+    // Do NOT add a `cancelled` local + cleanup here: cleanup sets cancelled=true,
+    // the second invocation returns early via this guard without resetting it,
+    // so the async load completing would see cancelled=true and skip setEngineStatus('ready').
     if (attemptedRef.current) return
     attemptedRef.current = true
-
-    let cancelled = false
 
     async function loadEngine() {
       setEngineStatus('loading')
@@ -125,10 +126,8 @@ export default function AssemblePage() {
       try {
         await Promise.race([doLoad(), timeout])
       } catch (err) {
-        if (!cancelled) {
-          setEngineError(err instanceof Error ? err.message : 'Failed to load audio engine')
-          setEngineStatus('error')
-        }
+        setEngineError(err instanceof Error ? err.message : 'Failed to load audio engine')
+        setEngineStatus('error')
       }
 
       async function doLoad() {
@@ -159,14 +158,12 @@ export default function AssemblePage() {
           throw err
         }
 
-        if (cancelled) return
         ffmpegRef.current = ffmpeg
         setEngineStatus('ready')
       }
     }
 
     loadEngine()
-    return () => { cancelled = true }
   }, [engineKey]) // re-runs when retry button is clicked
 
   // ── 2. Fetch data ─────────────────────────────────────────────────────
@@ -300,8 +297,7 @@ export default function AssemblePage() {
           '-ss', String(start),
           '-i', 'episode.mp3',
           ...(duration !== undefined ? ['-t', String(duration)] : []),
-          '-c', 'copy',
-          '-avoid_negative_ts', '1',
+          '-ar', '44100', '-ac', '2', '-b:a', '128k',
           `segment_${i}.mp3`,
         ]
 
@@ -326,7 +322,7 @@ export default function AssemblePage() {
         '-f', 'concat',
         '-safe', '0',
         '-i', 'concat.txt',
-        '-c', 'copy',
+        '-ar', '44100', '-ac', '2', '-b:a', '128k',
         'final_output.mp3',
       ])
       if (exitCode !== 0) throw new Error(`Concat failed (exit ${exitCode})`)
