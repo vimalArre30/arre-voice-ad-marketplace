@@ -297,7 +297,8 @@ export default function AssemblePage() {
           '-ss', String(start),
           '-i', 'episode.mp3',
           ...(duration !== undefined ? ['-t', String(duration)] : []),
-          '-ar', '44100', '-ac', '2', '-b:a', '128k',
+          '-c', 'copy',
+          '-avoid_negative_ts', '1',
           `segment_${i}.mp3`,
         ]
 
