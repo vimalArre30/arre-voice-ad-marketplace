@@ -144,11 +144,12 @@ export default function AssemblePage() {
         })
 
         try {
-          // toBlobURL fetches from same origin, wraps as blob: with explicit
-          // MIME type — required because ffmpeg worker uses dynamic import()
-          // on coreURL, which only accepts blob: or data: URLs in a worker context.
+          // Use pre-bundled worker from public/ffmpeg/ so webpack never touches
+          // @ffmpeg's internal worker.js (which contains dynamic import(blob:...)
+          // that webpack incorrectly intercepts and fails to resolve).
           const base = window.location.origin
           await ffmpeg.load({
+            classWorkerURL: await toBlobURL(`${base}/ffmpeg/worker.js`, 'text/javascript'),
             coreURL: await toBlobURL(`${base}/ffmpeg/ffmpeg-core.js`, 'text/javascript'),
             wasmURL: await toBlobURL(`${base}/ffmpeg/ffmpeg-core.wasm`, 'application/wasm'),
           })
