@@ -22,6 +22,7 @@ create table if not exists episodes (
   transcript        jsonb,
   status            text not null default 'uploaded'
     check (status in ('uploaded','transcribing','transcribed','detecting','ready')),
+  final_audio_url   text,
   created_at        timestamptz not null default now()
 );
 
